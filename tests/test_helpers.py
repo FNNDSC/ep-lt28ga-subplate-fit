@@ -3,7 +3,7 @@ Unit tests for helper functions.
 """
 
 from pathlib import Path
-from ep_surface_fit import locate_surface_for
+from lt28ga_surface_fit import locate_surface_for
 
 
 def test_locate_mask_for(tmp_path: Path):

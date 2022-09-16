@@ -1,19 +1,19 @@
 from setuptools import setup
 
 setup(
-    name='ep_surface_fit',
-    version='0.3.0',
+    name='ep-lt28ga-subplate-fit',
+    version='0.0.1',
     description='surface_fit wrapper',
     author='Jennings Zhang',
     author_email='Jennings.Zhang@childrens.harvard.edu',
-    url='https://github.com/FNNDSC/ep-radial_surface_fit_parameterized',
-    py_modules=['ep_surface_fit'],
+    url='https://github.com/FNNDSC/ep-lt28ga-subplate-fit',
+    py_modules=['lt28ga_surface_fit'],
     scripts=['surface_fit_script.pl'],
     install_requires=['chris_plugin'],
     license='MIT',
     entry_points={
         'console_scripts': [
-            'ep_surface_fit = ep_surface_fit:main'
+            'lt28ga_surface_fit = lt28ga_surface_fit:main'
         ]
     },
     classifiers=[

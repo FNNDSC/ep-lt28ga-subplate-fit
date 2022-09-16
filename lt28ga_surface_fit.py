@@ -18,16 +18,16 @@ __version__ = __pkg.version
 
 
 DISPLAY_TITLE = r"""
-                 __                  __ _ _
-                / _|                / _(_) |
- ___ _   _ _ __| |_ __ _  ___ ___  | |_ _| |_
-/ __| | | | '__|  _/ _` |/ __/ _ \ |  _| | __|
-\__ \ |_| | |  | || (_| | (_|  __/ | | | | |_
-|___/\__,_|_|  |_| \__,_|\___\___| |_| |_|\__|
-                               ______
-                              |______|
+ _        _____  _____                               __                  __ _ _   
+| |      / __  \|  _  |                             / _|                / _(_) |  
+| | __ _ `' / /' \ V /  __ _  __ _   ___ _   _ _ __| |_ __ _  ___ ___  | |_ _| |_ 
+| |/ _` |  / /   / _ \ / _` |/ _` | / __| | | | '__|  _/ _` |/ __/ _ \ |  _| | __|
+| | (_| |./ /___| |_| | (_| | (_| | \__ \ |_| | |  | || (_| | (_|  __/ | | | | |_ 
+|_|\__, |\_____/\_____/\__, |\__,_| |___/\__,_|_|  |_| \__,_|\___\___| |_| |_|\__|
+    __/ |               __/ |                                      ______         
+   |___/               |___/                                      |______| 
 
-        Parameterized batch experiment
+        inwards surface_fit for <=28 GA fetal brains
 
 """
 
@@ -35,13 +35,8 @@ parser = ArgumentParser(description='surface_fit wrapper',
                         formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--no-fail', dest='no_fail', action='store_true',
                     help='Produce exit code 0 even if any subprocesses do not.')
-parser.add_argument('--sw', type=int, default=200, help='stretch weight')
-parser.add_argument('--lw', type=float, default=5e-6, help='laplacian weight')
-parser.add_argument('--iter', type=int, default=600, help='iterations')
-parser.add_argument('--resize', type=float, default=1.0, help='linear scaling')
-parser.add_argument('--step-increment', type=float, default=0.20, help='step increment')
-
-
+parser.add_argument('--strategy', type=str, default='plain',
+                    help='name of surface_fit parameter schedule strategy to use')
 parser.add_argument('-V', '--version', action='version',
                     version=f'%(prog)s {__version__}')
 
@@ -57,16 +52,8 @@ def main(options: Namespace, inputdir: Path, outputdir: Path):
     print(DISPLAY_TITLE, file=sys.stderr, flush=True)
 
     params = [
-        '-lw',
-        str(options.lw),
-        '-sw',
-        str(options.sw),
-        '-iter',
-        str(options.iter),
-        '-resize',
-        str(options.resize),
-        '-si',
-        str(options.step_increment)
+        '-strategy',
+        options.strategy
     ]
 
     nproc = len(os.sched_getaffinity(0))

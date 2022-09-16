@@ -37,23 +37,12 @@ DESCRIPTION
 
 Getopt::Tabular::SetHelp( $help, $description );
 
-my $label = 0;
-my $age = 0;
-my $no_downsize = 0;
 my $save_chamfer = undef;
-my $given_sw = 200;
-my $given_lw = 5e-6;
-my $given_iter = 600;
-my $given_resize = 1.0;
-my $given_si = 0.20;
+my $sched_name = undef;
 
 my @options = (
-   ['-iter', 'integer', 1, \$given_iter, "iterations"],
-   ['-sw', 'integer', 1, \$given_sw, "stretch weight"],
-   ['-lw', 'float', 1, \$given_lw, "laplacian weight"],
-   ['-resize', 'float', 1, \$given_resize, "linear scaling"],
-   ['-si', 'float', 1, \$given_si, "step increment"],
-  );
+   ['-strategy', 'string', 1, \$sched_name, 'name of schedule to use']
+);
 
 GetOptions( \@options, \@ARGV ) or exit 1;
 die "$usage\n" unless @ARGV == 3;
@@ -61,46 +50,9 @@ die "$usage\n" unless @ARGV == 3;
 my $inner_mask = shift;
 my $white_surface = shift;
 my $surface = shift;
-
-copy($white_surface, $surface);
-
 my $tmpdir = &tempdir( "subplate-XXXXXX", TMPDIR => 1, CLEANUP => 1 );
-
-my $stretch_model = "$tmpdir/stretch_length_model.obj";
-my $ICBM_white_model = MNI::DataDir::dir("surface-extraction") .
-                       "/white_model_320.obj";
-copy($ICBM_white_model, $stretch_model);
-
 my $simple = "${tmpdir}/simple_chamfer.mnc";
-simple_chamfer( $inner_mask, $simple, $tmpdir );
-copy( $simple, $save_chamfer ) if ( defined( $save_chamfer) );
 
-# scale up experiment
-my $resize_xfm = "${tmpdir}/resize.xfm";
-&run( "param2xfm", '-scales', $given_resize, $given_resize, $given_resize, $resize_xfm );
-my $resize_reciprocal = 1.0 / $given_resize;
-my $undo_resize_xfm = "${tmpdir}/undo_resize.xfm";
-&run( "param2xfm", '-scales', $resize_reciprocal, $resize_reciprocal, $resize_reciprocal, $undo_resize_xfm );
-
-&run( "transform_objects", $surface, $resize_xfm, $surface );
-&run( "transform_volume", $simple, $resize_xfm, $simple );
-
-# distance map is resized which changes the magnitude of its vectors,
-# so we need to readjust them.
-&run( 'minccalc', '-quiet', '-clobber', '-expression', "(A[0]-10)*$given_resize+10",
-    $simple, "${tmpdir}/simple_chamfer_resized.mnc" );
-move("${tmpdir}/simple_chamfer_resized.mnc", $simple);
-
-my $self_dist2 = 0.001;
-my $self_weight2 = 1e08;
-my $n_selfs = 9;
-
-my $stop_threshold = 1e-3;
-my $stop_iters = 1000;
-my $n_per = 5;
-my $tolerance = 1.0e-03;
-my $f_tolerance = 1.0e-06;
-my $oo_scale = 0.5;
 
 # size  number of triangles
 # sw    weight for mesh stretching (bigger means less stretch)
@@ -124,11 +76,49 @@ my $oo_scale = 0.5;
 #       (0.0625 found to be too high)
 # t     iterations of taubin smoothing after cycles of surface_fit
 
-my @schedule = (
-#  size  sw          n_itr        inc   l_w    iso   si   os   iw  self  t  chamfer_algo
-# -----  ---         -----        ---   ----   --- ----  ---  ---- ----  -- --------
-  81920, $given_sw,  $given_iter, 50, $given_lw, 10, $given_si, 0.0, 1e0, 0.01, 0, $simple,
-);
+my @schedule;
+if ( $sched_name eq 'plain' ) {
+  @schedule = (
+    #  size  sw  n_itr inc l_w   iso   si   os   iw  self  t  chamfer_algo
+    # -----  --- ----- --- ----  --- ----  ---  ---- ----  -- --------
+      81920, 100, 600, 50, 2e-6, 10, 0.20, 0.0, 1e0, 0.01, 0, $simple,
+  );
+}
+elsif ($sched_name eq 'downsize') {
+  # To use a stretch weight as small as 6, we must be provided with a
+  # high quality surface with good distribution as input.
+  @schedule = (
+  #  size   sw  n_itr  inc   l_w  iso   si   os   iw    self   t  chamfer_algo
+  # -----  ---  -----  ---  ----  ---  ---- ---  ----   -----  -- --------
+    20480,  20,  400,  50,  2e-5,  10, 0.30,  0,  1.0,   0.01,  0, $simple,
+    81920, 100,   10,  10,  2e-6,  10, 0.05,  0,  1.0,   0.01,  0, $simple,
+  );
+}
+else {
+  die "unrecognized value for -strategy: ${sched_name}";
+}
+
+
+copy($white_surface, $surface);
+
+my $stretch_model = "$tmpdir/stretch_length_model.obj";
+my $ICBM_white_model = MNI::DataDir::dir("surface-extraction") .
+                       "/white_model_320.obj";
+copy($ICBM_white_model, $stretch_model);
+
+simple_chamfer( $inner_mask, $simple, $tmpdir );
+copy( $simple, $save_chamfer ) if ( defined( $save_chamfer) );
+
+my $self_dist2 = 0.001;
+my $self_weight2 = 1e08;
+my $n_selfs = 9;
+
+my $stop_threshold = 1e-3;
+my $stop_iters = 1000;
+my $n_per = 5;
+my $tolerance = 1.0e-03;
+my $f_tolerance = 1.0e-06;
+my $oo_scale = 0.5;
 
 # Do the fitting stages like gray surface expansion.
 my $sched_size = 12;
@@ -171,7 +161,6 @@ for ( my $i = 0;  $i < @schedule;  $i += $sched_size ) {
   }
 }
 unlink( $stretch_model );
-&run( "transform_objects", $surface, $undo_resize_xfm, $surface );
 
 # ============================================================
 #     HELPER FUNCTIONS
